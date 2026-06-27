@@ -23,3 +23,46 @@ class AnswerSubmissionResponse(BaseModel):
     question_index: int = Field(..., description="Index of the next question")
     is_complete: bool = Field(..., description="True if this was the final question")
     overall_score: Optional[int] = Field(None, description="Aggregate score on completion")
+
+
+class InterviewHistoryItem(BaseModel):
+    id: str
+    mode: str
+    overall_score: int
+    created_at: str
+
+
+class PaginationMetadata(BaseModel):
+    page: int
+    limit: int
+    total: int
+
+
+class InterviewHistoryResponse(BaseModel):
+    success: bool
+    interviews: list[InterviewHistoryItem]
+    pagination: PaginationMetadata
+
+
+class InterviewDetailQuestionItem(BaseModel):
+    id: int
+    question: str
+    answer: Optional[str] = None
+    score: Optional[int] = None
+    feedback: Optional[str] = None
+    topic: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class InterviewDetailSession(BaseModel):
+    id: str
+    mode: str
+    overall_score: int
+    created_at: str
+
+
+class InterviewDetailsResponse(BaseModel):
+    success: bool
+    interview: InterviewDetailSession
+    questions: list[InterviewDetailQuestionItem]
+

@@ -91,8 +91,8 @@ class InterviewService:
                 model = genai.GenerativeModel("gemini-2.5-flash")
                 prompt = (
                     f"You are a Senior Technical Recruiter. Generate exactly 3 diverse, challenging technical interview questions for a {role} role. "
-                    "Return them as a JSON list of strings, for example: "
-                    "[\"Question 1\", \"Question 2\", \"Question 3\"]. "
+                    "Return them as a JSON list of objects containing 'question' and 'topic' fields, for example: "
+                    "[{\"question\": \"Question 1\", \"topic\": \"Topic 1\"}, {\"question\": \"Question 2\", \"topic\": \"Topic 2\"}, {\"question\": \"Question 3\", \"topic\": \"Topic 3\"}]. "
                     "Do not include any markdown formatting, wrappers, or backticks; output only the raw JSON array."
                 )
                 logger.info("Prompt sent to Gemini successfully.")
@@ -114,7 +114,19 @@ class InterviewService:
                 
                 parsed_qs = json.loads(output_text)
                 if isinstance(parsed_qs, list) and len(parsed_qs) > 0:
-                    questions = [str(q) for q in parsed_qs]
+                    for item in parsed_qs:
+                        if isinstance(item, dict) and "question" in item:
+                            questions.append({
+                                "question": item["question"],
+                                "topic": item.get("topic", "General"),
+                                "keywords": item.get("keywords", [])
+                            })
+                        elif isinstance(item, str):
+                            questions.append({
+                                "question": item,
+                                "topic": "General",
+                                "keywords": []
+                            })
                 else:
                     logger.warning("Falling back to rule-based logic")
             except Exception as exc:
@@ -125,17 +137,24 @@ class InterviewService:
 
         # Fallback to predefined pools if not loaded by Gemini
         if not questions:
-            questions = [q["question"] for q in QUESTION_POOLS[role]]
+            questions = [
+                {
+                    "question": q["question"],
+                    "topic": q.get("topic", "General"),
+                    "keywords": q.get("keywords", [])
+                }
+                for q in QUESTION_POOLS[role]
+            ]
 
-        first_question = questions[0]
+        first_question = questions[0]["question"]
         questions_json = json.dumps(questions)
 
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO interviews (id, role, current_question_index, is_complete, score, questions_json) VALUES (?, ?, 0, 0, 0, ?)",
-                (session_id, role, questions_json)
+                "INSERT INTO interviews (id, role, current_question_index, is_complete, score, questions_json, interview_mode, overall_score) VALUES (?, ?, 0, 0, 0, ?, ?, 0)",
+                (session_id, role, questions_json, role)
             )
             conn.commit()
         except Exception as exc:
@@ -179,20 +198,27 @@ class InterviewService:
             else:
                 questions = [q["question"] for q in QUESTION_POOLS[role]]
 
-            question_text = questions[q_index]
-
-            # Get keywords for rule-based grading fallback if index matches predefined pool
-            keywords = []
-            if q_index < len(QUESTION_POOLS[role]):
-                keywords = QUESTION_POOLS[role][q_index].get("keywords", [])
+            question_data = questions[q_index]
+            if isinstance(question_data, dict):
+                question_text = question_data["question"]
+                topic = question_data.get("topic", "General")
+                keywords = question_data.get("keywords", [])
+            else:
+                question_text = question_data
+                topic = "General"
+                keywords = []
+                # Fallback to look up in QUESTION_POOLS if matching
+                if q_index < len(QUESTION_POOLS[role]):
+                    topic = QUESTION_POOLS[role][q_index].get("topic", "General")
+                    keywords = QUESTION_POOLS[role][q_index].get("keywords", [])
 
             # Grade response
             score, feedback = self._grade_answer(question_text, answer, keywords)
 
-            # Store message
+            # Store message with topic
             cursor.execute(
-                "INSERT INTO interview_messages (interview_id, question, answer, feedback, score) VALUES (?, ?, ?, ?, ?)",
-                (session_id, question_text, answer, feedback, score)
+                "INSERT INTO interview_messages (interview_id, question, answer, feedback, score, topic) VALUES (?, ?, ?, ?, ?, ?)",
+                (session_id, question_text, answer, feedback, score, topic)
             )
 
             # Advance session state
@@ -205,8 +231,8 @@ class InterviewService:
                 cursor.execute("SELECT AVG(score) as avg_score FROM interview_messages WHERE interview_id = ?", (session_id,))
                 overall_score = int(cursor.fetchone()["avg_score"])
                 cursor.execute(
-                    "UPDATE interviews SET current_question_index = ?, is_complete = 1, score = ? WHERE id = ?",
-                    (next_q_index, overall_score, session_id)
+                    "UPDATE interviews SET current_question_index = ?, is_complete = 1, score = ?, overall_score = ? WHERE id = ?",
+                    (next_q_index, overall_score, overall_score, session_id)
                 )
             else:
                 cursor.execute(
@@ -215,7 +241,11 @@ class InterviewService:
                 )
             conn.commit()
 
-            next_question = questions[next_q_index] if not is_complete else None
+            if not is_complete:
+                next_q_data = questions[next_q_index]
+                next_question = next_q_data["question"] if isinstance(next_q_data, dict) else next_q_data
+            else:
+                next_question = None
 
             return AnswerSubmissionResponse(
                 feedback=feedback,
@@ -328,3 +358,95 @@ class InterviewService:
         )
 
         return score, feedback
+
+    def get_history(self, page: int = 1, limit: int = 10) -> tuple[list[dict], int]:
+        offset = (page - 1) * limit
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            
+            # Count total
+            cursor.execute("SELECT COUNT(*) as total FROM interviews")
+            total = cursor.fetchone()["total"]
+            
+            # Query paginated rows ordered by created_at DESC, rowid DESC
+            cursor.execute(
+                """
+                SELECT id, role, score, interview_mode, overall_score, created_at
+                FROM interviews
+                ORDER BY created_at DESC, rowid DESC
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset)
+            )
+            rows = cursor.fetchall()
+            interviews = []
+            for row in rows:
+                mode = row["interview_mode"] or row["role"] or "Full Stack"
+                overall_score = row["overall_score"] if row["overall_score"] is not None else row["score"]
+                interviews.append({
+                    "id": row["id"],
+                    "mode": mode,
+                    "overall_score": overall_score,
+                    "created_at": row["created_at"]
+                })
+            return interviews, total
+        finally:
+            conn.close()
+
+    def get_details(self, interview_id: str) -> dict:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, role, score, interview_mode, overall_score, created_at
+                FROM interviews
+                WHERE id = ?
+                """,
+                (interview_id,)
+            )
+            session_row = cursor.fetchone()
+            if not session_row:
+                raise ValueError("Interview session not found.")
+            
+            mode = session_row["interview_mode"] or session_row["role"] or "Full Stack"
+            overall_score = session_row["overall_score"] if session_row["overall_score"] is not None else session_row["score"]
+            
+            interview_metadata = {
+                "id": session_row["id"],
+                "mode": mode,
+                "overall_score": overall_score,
+                "created_at": session_row["created_at"]
+            }
+            
+            # Get all questions
+            cursor.execute(
+                """
+                SELECT id, question, answer, feedback, score, topic, created_at
+                FROM interview_messages
+                WHERE interview_id = ?
+                ORDER BY id ASC
+                """,
+                (interview_id,)
+            )
+            message_rows = cursor.fetchall()
+            
+            questions = []
+            for row in message_rows:
+                questions.append({
+                    "id": row["id"],
+                    "question": row["question"],
+                    "answer": row["answer"],
+                    "feedback": row["feedback"],
+                    "score": row["score"],
+                    "topic": row["topic"] or "General",
+                    "created_at": row["created_at"]
+                })
+            
+            return {
+                "interview": interview_metadata,
+                "questions": questions
+            }
+        finally:
+            conn.close()

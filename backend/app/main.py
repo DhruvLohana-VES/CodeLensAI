@@ -24,7 +24,9 @@ else:
 from app.utils.db import init_db
 from app.routes.resume import router as resume_router
 from app.routes.interview import router as interview_router
+from app.routes.interviews import router as interviews_router
 from app.routes.code import router as code_router
+from app.routes.analytics import router as analytics_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -75,5 +77,7 @@ def health_check():
 
 app.include_router(resume_router, prefix="/api/v1")
 app.include_router(interview_router, prefix="/api/v1")
+app.include_router(interviews_router, prefix="/api/v1")
 app.include_router(code_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
 

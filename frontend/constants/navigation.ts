@@ -44,7 +44,7 @@ export const dashboardNav: NavItem[] = [
     title: "Analytics",
     href: "/analytics",
     icon: BarChart3,
-    status: "coming",
+    status: "active",
   },
   {
     title: "Roadmaps",
