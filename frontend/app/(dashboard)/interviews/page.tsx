@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import { 
   startInterview as apiStartInterview, 
   submitAnswer as apiSubmitAnswer,
@@ -39,6 +40,7 @@ type SessionState = {
 };
 
 export default function InterviewsPage() {
+  const { error: toastError } = useToast();
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
   
   // New session states
@@ -104,7 +106,7 @@ export default function InterviewsPage() {
       }
     } catch (e) {
       console.error("Error fetching details:", e);
-      alert("Error loading interview details.");
+      toastError("Error loading interview details.");
     } finally {
       setIsLoadingDetails(false);
     }
@@ -127,7 +129,7 @@ export default function InterviewsPage() {
         isComplete: data.is_complete,
       });
     } catch (e) {
-      alert("Error starting mock interview session. Please verify that the backend server is running.");
+      toastError("Error starting mock interview session. Please verify that the backend server is running.");
     } finally {
       setIsStarting(false);
     }
@@ -161,7 +163,7 @@ export default function InterviewsPage() {
       
       setAnswer("");
     } catch (e) {
-      alert("Error submitting response. Please verify that the backend server is running.");
+      toastError("Error submitting response. Please verify that the backend server is running.");
     } finally {
       setIsSubmitting(false);
     }

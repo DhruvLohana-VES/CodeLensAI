@@ -27,6 +27,8 @@ from app.routes.interview import router as interview_router
 from app.routes.interviews import router as interviews_router
 from app.routes.code import router as code_router
 from app.routes.analytics import router as analytics_router
+from app.routes.weakness import router as weakness_router
+from app.routes.roadmap import router as roadmap_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -80,4 +82,6 @@ app.include_router(interview_router, prefix="/api/v1")
 app.include_router(interviews_router, prefix="/api/v1")
 app.include_router(code_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(weakness_router, prefix="/api/v1")
+app.include_router(roadmap_router, prefix="/api/v1")
 

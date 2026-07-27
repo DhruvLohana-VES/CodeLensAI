@@ -5,6 +5,7 @@ import { Play, Sparkles, Terminal, Code2, AlertCircle, RefreshCw, CheckCircle2 }
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { executeCode as apiExecuteCode, getCodeFeedback as apiGetCodeFeedback } from "@/services/code";
+import { useToast } from "@/components/ui/toast";
 
 type Challenge = {
   id: string;
@@ -41,6 +42,7 @@ const CHALLENGES: Challenge[] = [
 ];
 
 export default function CodingPage() {
+  const { error: toastError } = useToast();
   const [selectedChallenge, setSelectedChallenge] = useState<Challenge>(CHALLENGES[0]);
   const [language, setLanguage] = useState<"python" | "javascript">("python");
   const [code, setCode] = useState<string>(CHALLENGES[0].templates.python);
@@ -98,7 +100,7 @@ export default function CodingPage() {
       const data = await apiGetCodeFeedback(code, selectedChallenge.title);
       setFeedbackResult(data);
     } catch (e) {
-      alert("Network error or server error analyzing code. Verify server is running.");
+      toastError("Network error or server error analyzing code. Verify server is running.");
     } finally {
       setIsAnalyzing(false);
     }

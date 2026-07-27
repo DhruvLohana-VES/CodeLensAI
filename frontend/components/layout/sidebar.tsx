@@ -45,7 +45,7 @@ export function Sidebar() {
         })}
       </div>
       <div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/60">
-        Connect FastAPI services when ready. This MVP is UI-only.
+        CodeLens Core Services connected and operational.
       </div>
     </aside>
   );

@@ -6,6 +6,7 @@ import {
   Map,
   MessageSquare,
   Code2,
+  AlertTriangle,
 } from "lucide-react";
 
 export type NavItem = {
@@ -47,10 +48,16 @@ export const dashboardNav: NavItem[] = [
     status: "active",
   },
   {
+    title: "Weakness Analysis",
+    href: "/weakness",
+    icon: AlertTriangle,
+    status: "active",
+  },
+  {
     title: "Roadmaps",
     href: "/roadmaps",
     icon: Map,
-    status: "coming",
+    status: "active",
   },
 ];
 

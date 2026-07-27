@@ -34,6 +34,16 @@ def init_db():
             analysis_json TEXT NOT NULL
         )
         """)
+
+        # Roadmaps table (caches generated study plans with weakness fingerprints)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS roadmaps (
+            id TEXT PRIMARY KEY,
+            roadmap_json TEXT NOT NULL,
+            weakness_fingerprint TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
         
         # Interviews table (tracks interview sessions)
         cursor.execute("""
